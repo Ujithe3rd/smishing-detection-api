@@ -195,6 +195,88 @@ def predict():
     })
 
 
+MAX_BATCH_SIZE = 500  # safeguard against oversized payloads on limited hosting
+
+
+@app.route("/telecom/batch-predict", methods=["POST"])
+def telecom_batch_predict():
+    """
+    Batch classification endpoint for telecom-operator-level use.
+    Screens multiple messages in a single request, simulating how a
+    telecom SMS gateway would filter a stream of messages automatically,
+    as distinct from the single-message /predict endpoint used by
+    individual end users.
+
+    Expects JSON: {"messages": ["msg1", "msg2", ...]}
+    """
+    data = request.get_json(silent=True)
+
+    if not data or "messages" not in data:
+        return jsonify({"error": "Request body must be JSON with a 'messages' field (a list of strings)."}), 400
+
+    messages = data["messages"]
+
+    if not isinstance(messages, list) or len(messages) == 0:
+        return jsonify({"error": "'messages' must be a non-empty list of strings."}), 400
+
+    if len(messages) > MAX_BATCH_SIZE:
+        return jsonify({
+            "error": f"Batch too large. Maximum {MAX_BATCH_SIZE} messages per request, received {len(messages)}."
+        }), 400
+
+    results = []
+    smishing_count = 0
+    legitimate_count = 0
+    skipped_count = 0
+
+    for i, message in enumerate(messages):
+        if not isinstance(message, str) or not message.strip():
+            results.append({
+                "index": i,
+                "message": message,
+                "error": "Skipped: message must be a non-empty string."
+            })
+            skipped_count += 1
+            continue
+
+        vec = tfidf.transform([message])
+        pred_idx = model.predict(vec)[0]
+        label = label_encoder.inverse_transform([pred_idx])[0]
+
+        proba = model.predict_proba(vec)[0]
+        confidence = float(max(proba))
+
+        # Same substring check the homepage already relies on for its
+        # red/green display. Swap to an exact match if /health shows a
+        # differently spelled label.
+        is_smishing = "smish" in label.lower()
+        action = "block" if is_smishing else "allow"
+
+        if is_smishing:
+            smishing_count += 1
+        else:
+            legitimate_count += 1
+
+        results.append({
+            "index": i,
+            "message": message,
+            "prediction": label,
+            "confidence": round(confidence, 4),
+            "recommended_action": action
+        })
+
+    return jsonify({
+        "results": results,
+        "summary": {
+            "total_received": len(messages),
+            "total_processed": len(messages) - skipped_count,
+            "total_skipped": skipped_count,
+            "smishing_detected": smishing_count,
+            "legitimate": legitimate_count
+        }
+    })
+
+
 if __name__ == "__main__":
     # debug=True is fine for local testing only; set to False before any real deployment
     app.run(debug=True, host="0.0.0.0", port=5000)
