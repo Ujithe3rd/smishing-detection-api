@@ -1,12 +1,6 @@
 """
 Nigerian SMS Smishing Detection API
-------------------------------------
-Wraps the trained TF-IDF + Random Forest pipeline in a Flask API.
 
-Expects three files in the same directory:
-    smishing_model.joblib
-    tfidf_vectorizer.joblib
-    label_encoder.joblib
 
 Run locally:
     python app.py
@@ -75,7 +69,7 @@ def home():
                 font-weight: bold;
                 display: none;
             }
-            .smishing {
+            .phishing {
                 background-color: #f8d7da;
                 color: #721c24;
                 display: block !important;
@@ -138,8 +132,8 @@ def home():
                         ? (data.confidence * 100).toFixed(1) + '%'
                         : 'N/A';
 
-                    if (prediction.toLowerCase().includes('smish')) {
-                        resultDiv.className = 'smishing';
+                    if (prediction === 'Phishing') {
+                        resultDiv.className = 'phishing';
                         resultDiv.innerHTML = 'Result: ' + prediction.toUpperCase() +
                             '<span id="confidence">Confidence: ' + confidence + '</span>';
                     } else {
@@ -225,7 +219,7 @@ def telecom_batch_predict():
         }), 400
 
     results = []
-    smishing_count = 0
+    phishing_count = 0
     legitimate_count = 0
     skipped_count = 0
 
@@ -246,14 +240,14 @@ def telecom_batch_predict():
         proba = model.predict_proba(vec)[0]
         confidence = float(max(proba))
 
-        # Same substring check the homepage already relies on for its
-        # red/green display. Swap to an exact match if /health shows a
-        # differently spelled label.
-        is_smishing = "smish" in label.lower()
-        action = "block" if is_smishing else "allow"
+        # Exact match against the real trained class label, confirmed via
+        # /health: ["Phishing", "Promotional", "Safe"]. Promotional is
+        # currently treated as non-phishing (allow) alongside Safe.
+        is_phishing = label == "Phishing"
+        action = "block" if is_phishing else "allow"
 
-        if is_smishing:
-            smishing_count += 1
+        if is_phishing:
+            phishing_count += 1
         else:
             legitimate_count += 1
 
@@ -271,7 +265,7 @@ def telecom_batch_predict():
             "total_received": len(messages),
             "total_processed": len(messages) - skipped_count,
             "total_skipped": skipped_count,
-            "smishing_detected": smishing_count,
+            "phishing_detected": phishing_count,
             "legitimate": legitimate_count
         }
     })
