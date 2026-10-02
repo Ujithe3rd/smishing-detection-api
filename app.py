@@ -138,12 +138,12 @@ def home():
 
                 if (!message.trim()) {
                     resultDiv.className = 'neutral';
-                    resultDiv.innerHTML = 'Please enter a message first.';
+                    resultDiv.textContent = 'Please enter a message first.';
                     return;
                 }
 
                 resultDiv.className = 'neutral';
-                resultDiv.innerHTML = 'Checking...';
+                resultDiv.textContent = 'Checking...';
 
                 try {
                     const response = await fetch('/predict', {
@@ -155,7 +155,7 @@ def home():
 
                     if (data.error) {
                         resultDiv.className = 'neutral';
-                        resultDiv.innerHTML = 'Error: ' + data.error;
+                        resultDiv.textContent = 'Error: ' + data.error;
                         return;
                     }
 
@@ -164,28 +164,51 @@ def home():
                         ? (data.confidence * 100).toFixed(1) + '%'
                         : 'N/A';
 
-                    if (prediction === 'Phishing') {
-                        resultDiv.className = 'phishing';
-                        resultDiv.innerHTML = 'Result: ' + prediction.toUpperCase() +
-                            '<span id="confidence">Confidence: ' + confidence + '</span>' +
-                            '<div class="feedback-box"><span>Is this prediction correct?</span>' +
-                            '<button class="fb safe" onclick="sendFeedback(' + data.prediction_id + ', \'Safe\')">Legitimate / Safe</button>' +
-                            '<button class="fb phish" onclick="sendFeedback(' + data.prediction_id + ', \'Phishing\')">Phishing</button>' +
-                            '<button class="fb promo" onclick="sendFeedback(' + data.prediction_id + ', \'Promotional\')">Promotional</button></div>' +
-                            '<div id="feedbackStatus"></div>';
-                    } else {
-                        resultDiv.className = 'legitimate';
-                        resultDiv.innerHTML = 'Result: ' + prediction.toUpperCase() +
-                            '<span id="confidence">Confidence: ' + confidence + '</span>' +
-                            '<div class="feedback-box"><span>Is this prediction correct?</span>' +
-                            '<button class="fb safe" onclick="sendFeedback(' + data.prediction_id + ', \'Safe\')">Legitimate / Safe</button>' +
-                            '<button class="fb phish" onclick="sendFeedback(' + data.prediction_id + ', \'Phishing\')">Phishing</button>' +
-                            '<button class="fb promo" onclick="sendFeedback(' + data.prediction_id + ', \'Promotional\')">Promotional</button></div>' +
-                            '<div id="feedbackStatus"></div>';
-                    }
+                    resultDiv.className = prediction === 'Phishing' ? 'phishing' : 'legitimate';
+                    resultDiv.innerHTML = '';
+
+                    const resultText = document.createElement('div');
+                    resultText.textContent = 'Result: ' + prediction.toUpperCase();
+                    resultDiv.appendChild(resultText);
+
+                    const confidenceSpan = document.createElement('span');
+                    confidenceSpan.id = 'confidence';
+                    confidenceSpan.textContent = 'Confidence: ' + confidence;
+                    resultDiv.appendChild(confidenceSpan);
+
+                    const feedbackBox = document.createElement('div');
+                    feedbackBox.className = 'feedback-box';
+
+                    const feedbackQuestion = document.createElement('span');
+                    feedbackQuestion.textContent = 'Is this prediction correct?';
+                    feedbackBox.appendChild(feedbackQuestion);
+
+                    const feedbackOptions = [
+                        { label: 'Legitimate / Safe', value: 'Safe', className: 'safe' },
+                        { label: 'Phishing', value: 'Phishing', className: 'phish' },
+                        { label: 'Promotional', value: 'Promotional', className: 'promo' }
+                    ];
+
+                    feedbackOptions.forEach(function(option) {
+                        const button = document.createElement('button');
+                        button.type = 'button';
+                        button.className = 'fb ' + option.className;
+                        button.textContent = option.label;
+                        button.addEventListener('click', function() {
+                            sendFeedback(data.prediction_id, option.value);
+                        });
+                        feedbackBox.appendChild(button);
+                    });
+
+                    resultDiv.appendChild(feedbackBox);
+
+                    const feedbackStatus = document.createElement('div');
+                    feedbackStatus.id = 'feedbackStatus';
+                    resultDiv.appendChild(feedbackStatus);
                 } catch (error) {
+                    console.error('Prediction error:', error);
                     resultDiv.className = 'neutral';
-                    resultDiv.innerHTML = 'Something went wrong. Please try again.';
+                    resultDiv.textContent = 'Something went wrong. Please try again.';
                 }
             }
         async function sendFeedback(predictionId, correctedLabel) {
